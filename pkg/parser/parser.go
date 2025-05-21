@@ -111,15 +111,18 @@ func parseStats(output string) (*Stats, error) {
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
 
+		// Ignore empty lines
 		if line == "" {
 			continue
 		}
 
+		// Determine if line is section header
 		if strings.HasSuffix(line, ":") {
 			section = strings.TrimSuffix(line, ":")
 			continue
 		}
 
+		// Split line into key and value
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) != 2 {
 			continue
@@ -128,11 +131,13 @@ func parseStats(output string) (*Stats, error) {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 
+		// Parse key-value pairs based on section
 		switch section {
 		case "":
 			parseMainSection(stats, key, value)
 		case "core":
 			parseCoreSection(&stats.Core, key, value)
+			parseCoreSection_1_13(&stats.Core, key, value)
 		case "sessions":
 			parseSessionsSection(&stats.Sessions, key, value)
 		case "pppoe":
@@ -261,6 +266,35 @@ func parseCoreSection(core *CoreStats, key, value string) {
 			core.TimerCount = count
 			core.TimerPending = pending
 		}
+	}
+}
+
+func parseCoreSection_1_13(core *CoreStats, key, value string) {
+	f, _ := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	// Implement parsing logic based on key
+	switch key {
+	case "mempool_allocated":
+		core.MempoolAllocated = f
+	case "mempool_available":
+		core.MempoolAvailable = f
+	case "thread_count":
+		core.ThreadCount = f
+	case "thread_active":
+		core.ThreadActive = f
+	case "context_count":
+		core.ContextCount = f
+	case "context_sleeping":
+		core.ContextSleeping = f
+	case "context_pending":
+		core.ContextPending = f
+	case "md_handler_count":
+		core.MDHandlerCount = f
+	case "md_handler_pending":
+		core.MDHandlerPending = f
+	case "timer_count":
+		core.TimerCount = f
+	case "timer_pending":
+		core.TimerPending = f
 	}
 }
 
