@@ -49,6 +49,17 @@ type AccelCollector struct {
 	pppoeSentPADS    prometheus.Gauge
 	pppoeFiltered    prometheus.Gauge
 
+	// L2TP metrics
+	l2tpTunnelsStarting                  prometheus.Gauge
+	l2tpTunnelsActive                    prometheus.Gauge
+	l2tpTunnelsFinishing                 prometheus.Gauge
+	l2tpSessionsControlChannelsStarting  prometheus.Gauge
+	l2tpSessionsControlChannelsActive    prometheus.Gauge
+	l2tpSessionsControlChannelsFinishing prometheus.Gauge
+	l2tpSessionsDataChannelsStarting     prometheus.Gauge
+	l2tpSessionsDataChannelsActive       prometheus.Gauge
+	l2tpSessionsDataChannelsFinishing    prometheus.Gauge
+
 	// RADIUS metrics
 	radiusState            *prometheus.GaugeVec
 	radiusFailCount        *prometheus.GaugeVec
@@ -206,6 +217,44 @@ func NewAccelCollector(accelCmdPath string) *AccelCollector {
 		pppoeFiltered: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_pppoe_filtered_total",
 			Help: "Total filtered PPPoE packets.",
+		}),
+
+		// L2TP metrics
+		l2tpTunnelsStarting: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_tunnels_starting",
+			Help: "Number of L2TP tunnels starting.",
+		}),
+		l2tpTunnelsActive: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_tunnels_active",
+			Help: "Number of active L2TP tunnels.",
+		}),
+		l2tpTunnelsFinishing: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_tunnels_finishing",
+			Help: "Number of L2TP tunnels finishing.",
+		}),
+		l2tpSessionsControlChannelsStarting: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_sessions_control_channels_starting",
+			Help: "Number of L2TP sessions (control channels) starting.",
+		}),
+		l2tpSessionsControlChannelsActive: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_sessions_control_channels_active",
+			Help: "Number of active L2TP sessions (control channels).",
+		}),
+		l2tpSessionsControlChannelsFinishing: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_sessions_control_channels_finishing",
+			Help: "Number of L2TP sessions (control channels) finishing.",
+		}),
+		l2tpSessionsDataChannelsStarting: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_sessions_data_channels_starting",
+			Help: "Number of L2TP sessions (data channels) starting.",
+		}),
+		l2tpSessionsDataChannelsActive: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_sessions_data_channels_active",
+			Help: "Number of active L2TP sessions (data channels).",
+		}),
+		l2tpSessionsDataChannelsFinishing: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "accel_l2tp_sessions_data_channels_finishing",
+			Help: "Number of L2TP sessions (data channels) finishing.",
 		}),
 
 		// RADIUS metrics with labels
@@ -405,6 +454,17 @@ func (c *AccelCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.pppoeSentPADS.Desc()
 	ch <- c.pppoeFiltered.Desc()
 
+	// L2TP metrics
+	ch <- c.l2tpTunnelsStarting.Desc()
+	ch <- c.l2tpTunnelsActive.Desc()
+	ch <- c.l2tpTunnelsFinishing.Desc()
+	ch <- c.l2tpSessionsControlChannelsStarting.Desc()
+	ch <- c.l2tpSessionsControlChannelsActive.Desc()
+	ch <- c.l2tpSessionsControlChannelsFinishing.Desc()
+	ch <- c.l2tpSessionsDataChannelsStarting.Desc()
+	ch <- c.l2tpSessionsDataChannelsActive.Desc()
+	ch <- c.l2tpSessionsDataChannelsFinishing.Desc()
+
 	// RADIUS metrics
 	c.radiusState.Describe(ch)
 	c.radiusFailCount.Describe(ch)
@@ -517,6 +577,26 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- c.pppoeSentPADS
 	c.pppoeFiltered.Set(stats.PPPoE.Filtered)
 	ch <- c.pppoeFiltered
+
+	// Set L2TP metrics
+	c.l2tpTunnelsStarting.Set(stats.L2TP.TunnelsStarting)
+	ch <- c.l2tpTunnelsStarting
+	c.l2tpTunnelsActive.Set(stats.L2TP.TunnelsActive)
+	ch <- c.l2tpTunnelsActive
+	c.l2tpTunnelsFinishing.Set(stats.L2TP.TunnelsFinishing)
+	ch <- c.l2tpTunnelsFinishing
+	c.l2tpSessionsControlChannelsStarting.Set(stats.L2TP.SessionsControlChannelsStarting)
+	ch <- c.l2tpSessionsControlChannelsStarting
+	c.l2tpSessionsControlChannelsActive.Set(stats.L2TP.SessionsControlChannelsActive)
+	ch <- c.l2tpSessionsControlChannelsActive
+	c.l2tpSessionsControlChannelsFinishing.Set(stats.L2TP.SessionsControlChannelsFinishing)
+	ch <- c.l2tpSessionsControlChannelsFinishing
+	c.l2tpSessionsDataChannelsStarting.Set(stats.L2TP.SessionsDataChannelsStarting)
+	ch <- c.l2tpSessionsDataChannelsStarting
+	c.l2tpSessionsDataChannelsActive.Set(stats.L2TP.SessionsDataChannelsActive)
+	ch <- c.l2tpSessionsDataChannelsActive
+	c.l2tpSessionsDataChannelsFinishing.Set(stats.L2TP.SessionsDataChannelsFinishing)
+	ch <- c.l2tpSessionsDataChannelsFinishing
 
 	// Set RADIUS metrics
 	// Reset vectors before setting new values to avoid stale metrics if a server disappears

@@ -18,6 +18,7 @@ type Stats struct {
 	Core          CoreStats
 	Sessions      SessionStats
 	PPPoE         PPPoEStats
+	L2TP          L2TPStats
 	RadiusServers map[string]RadiusStats
 }
 
@@ -55,6 +56,19 @@ type PPPoEStats struct {
 	RecvPADRDup float64
 	SentPADS    float64
 	Filtered    float64
+}
+
+// L2TPStats contains L2TP protocol metrics
+type L2TPStats struct {
+	TunnelsStarting                  float64
+	TunnelsActive                    float64
+	TunnelsFinishing                 float64
+	SessionsControlChannelsStarting  float64
+	SessionsControlChannelsActive    float64
+	SessionsControlChannelsFinishing float64
+	SessionsDataChannelsStarting     float64
+	SessionsDataChannelsActive       float64
+	SessionsDataChannelsFinishing    float64
 }
 
 // RadiusStats contains RADIUS server metrics
@@ -98,6 +112,19 @@ func CollectStats(accelCmdPath string) (*Stats, error) {
 	return parseStats(out.String())
 }
 
+var sections = map[string]struct{}{
+	"core":     {},
+	"sessions": {},
+	"pppoe":    {},
+	"l2tp":     {},
+}
+
+var subsections = map[string]struct{}{
+	"tunnels":                     {},
+	"sessions (control channels)": {},
+	"sessions (data channels)":    {},
+}
+
 // parseStats parses the output of accel-cmd show stat
 func parseStats(output string) (*Stats, error) {
 	stats := &Stats{
@@ -105,7 +132,8 @@ func parseStats(output string) (*Stats, error) {
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(output))
-	var section string
+	var currentSection string
+	var currentSubsection string
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -118,7 +146,20 @@ func parseStats(output string) (*Stats, error) {
 
 		// Determine if line is section header
 		if strings.HasSuffix(line, ":") {
-			section = strings.TrimSuffix(line, ":")
+			section := strings.TrimSuffix(line, ":")
+
+			// Determine if it's a main section header
+			if _, ok := sections[section]; ok {
+				currentSection = section
+				continue
+			}
+
+			// Determine if it's a subsection header
+			if _, ok := subsections[section]; ok {
+				currentSubsection = section
+				continue
+			}
+			currentSection = strings.TrimSuffix(line, ":")
 			continue
 		}
 
@@ -132,7 +173,7 @@ func parseStats(output string) (*Stats, error) {
 		value := strings.TrimSpace(parts[1])
 
 		// Parse key-value pairs based on section
-		switch section {
+		switch currentSection {
 		case "":
 			parseMainSection(stats, key, value)
 		case "core":
@@ -142,9 +183,11 @@ func parseStats(output string) (*Stats, error) {
 			parseSessionsSection(&stats.Sessions, key, value)
 		case "pppoe":
 			parsePPPoESection(&stats.PPPoE, key, value)
+		case "l2tp":
+			parseL2TPSection(&stats.L2TP, currentSubsection, key, value)
 		default:
-			if strings.HasPrefix(section, "radius") {
-				radiusMatch := regexp.MustCompile(`radius\((\d+), ([\d\.]+)\)`).FindStringSubmatch(section)
+			if strings.HasPrefix(currentSection, "radius") {
+				radiusMatch := regexp.MustCompile(`radius\((\d+), ([\d\.]+)\)`).FindStringSubmatch(currentSection)
 				if len(radiusMatch) == 3 {
 					radiusID := radiusMatch[1]
 					radiusIP := radiusMatch[2]
@@ -333,6 +376,39 @@ func parsePPPoESection(pppoe *PPPoEStats, key, value string) {
 		pppoe.SentPADS = f
 	case "filtered":
 		pppoe.Filtered = f
+	}
+}
+
+func parseL2TPSection(l2tp *L2TPStats, subsection, key, value string) {
+	f, _ := strconv.ParseFloat(value, 64)
+	switch subsection {
+	case "tunnels":
+		switch key {
+		case "starting":
+			l2tp.TunnelsStarting = f
+		case "active":
+			l2tp.TunnelsActive = f
+		case "finishing":
+			l2tp.TunnelsFinishing = f
+		}
+	case "sessions (control channels)":
+		switch key {
+		case "starting":
+			l2tp.SessionsControlChannelsStarting = f
+		case "active":
+			l2tp.SessionsControlChannelsActive = f
+		case "finishing":
+			l2tp.SessionsControlChannelsFinishing = f
+		}
+	case "sessions (data channels)":
+		switch key {
+		case "starting":
+			l2tp.SessionsDataChannelsStarting = f
+		case "active":
+			l2tp.SessionsDataChannelsActive = f
+		case "finishing":
+			l2tp.SessionsDataChannelsFinishing = f
+		}
 	}
 }
 
