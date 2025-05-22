@@ -3,6 +3,7 @@ package collector
 import (
 	"log"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/taihen/accel-exporter/pkg/parser"
 )
@@ -83,11 +84,19 @@ type AccelCollector struct {
 	radiusInterimLost1m    *prometheus.GaugeVec
 	radiusInterimAvgTime5m *prometheus.GaugeVec
 	radiusInterimAvgTime1m *prometheus.GaugeVec
+
+	// Session metrics
+	sessionUptime  *prometheus.GaugeVec
+	sessionRxBytes *prometheus.GaugeVec
+	sessionTxBytes *prometheus.GaugeVec
+	sessionRxPkts  *prometheus.GaugeVec
+	sessionTxPkts  *prometheus.GaugeVec
 }
 
 // NewAccelCollector creates a new AccelCollector
 func NewAccelCollector(accelCmdPath string) *AccelCollector {
 	radiusLabels := []string{"server_id", "server_ip"}
+	sessionLabels := []string{"type", "ifname", "username", "ip", "calling_sid", "called_sid", "sid"}
 
 	return &AccelCollector{
 		accelCmdPath: accelCmdPath,
@@ -412,6 +421,43 @@ func NewAccelCollector(accelCmdPath string) *AccelCollector {
 			},
 			radiusLabels,
 		),
+
+		// Session metrics
+		sessionUptime: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "accel_session_uptime",
+				Help: "Uptime of the session.",
+			},
+			sessionLabels,
+		),
+		sessionRxBytes: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "accel_session_rx_bytes",
+				Help: "Received bytes of the session.",
+			},
+			sessionLabels,
+		),
+		sessionTxBytes: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "accel_session_tx_bytes",
+				Help: "Transmitted bytes of the session.",
+			},
+			sessionLabels,
+		),
+		sessionRxPkts: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "accel_session_rx_pkts",
+				Help: "Number of received packets of the session.",
+			},
+			sessionLabels,
+		),
+		sessionTxPkts: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "accel_session_tx_pkts",
+				Help: "Number of transmitted packets of the session.",
+			},
+			sessionLabels,
+		),
 	}
 }
 
@@ -488,6 +534,13 @@ func (c *AccelCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.radiusInterimLost1m.Describe(ch)
 	c.radiusInterimAvgTime5m.Describe(ch)
 	c.radiusInterimAvgTime1m.Describe(ch)
+
+	// Session metrics
+	c.sessionUptime.Describe(ch)
+	c.sessionRxBytes.Describe(ch)
+	c.sessionTxBytes.Describe(ch)
+	c.sessionRxPkts.Describe(ch)
+	c.sessionTxPkts.Describe(ch)
 }
 
 // Collect implements the prometheus.Collector interface
@@ -501,6 +554,17 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 		log.Printf("Error collecting stats: %v", err)
 		return
 	}
+
+	sessions, err := parser.CollectSessions(c.accelCmdPath)
+	if err != nil {
+		c.up.Set(0)
+		c.scrapeFailures.Inc()
+		ch <- c.up
+		ch <- c.scrapeFailures
+		log.Printf("Error collecting sessions: %v", err)
+		return
+	}
+	spew.Dump(sessions)
 
 	c.up.Set(1)
 	ch <- c.up
@@ -679,4 +743,29 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 	c.radiusInterimLost1m.Collect(ch)
 	c.radiusInterimAvgTime5m.Collect(ch)
 	c.radiusInterimAvgTime1m.Collect(ch)
+
+	// Session metrics
+	for _, session := range sessions {
+		labels := prometheus.Labels{
+			"type":        session.Type,
+			"ifname":      session.Ifname,
+			"username":    session.Username,
+			"ip":          session.IP,
+			"calling_sid": session.CallingSID,
+			"called_sid":  session.CalledSID,
+			"sid":         session.SID,
+		}
+		c.sessionUptime.With(labels).Set(session.Uptime)
+		c.sessionRxBytes.With(labels).Set(session.RxBytes)
+		c.sessionTxBytes.With(labels).Set(session.TxBytes)
+		c.sessionRxPkts.With(labels).Set(session.RxPkts)
+		c.sessionTxPkts.With(labels).Set(session.TxPkts)
+	}
+
+	// Collect all vector metrics
+	c.sessionUptime.Collect(ch)
+	c.sessionRxBytes.Collect(ch)
+	c.sessionTxBytes.Collect(ch)
+	c.sessionRxPkts.Collect(ch)
+	c.sessionTxPkts.Collect(ch)
 }
